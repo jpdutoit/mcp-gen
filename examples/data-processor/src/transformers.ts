@@ -1,3 +1,5 @@
+import Papa from "papaparse";
+
 export interface TransformOptions {
   preserveCase?: boolean;
   trimWhitespace?: boolean;
@@ -30,37 +32,14 @@ export function toPascalCase(str: string): string {
 }
 
 export function csvToJson(csv: string, delimiter: string = ","): Record<string, string>[] {
-  const lines = csv.trim().split("\n");
-  if (lines.length < 2) return [];
-
-  const headers = lines[0].split(delimiter).map((h) => h.trim());
-  const rows = lines.slice(1);
-
-  return rows.map((row) => {
-    const values = row.split(delimiter).map((v) => v.trim());
-    const obj: Record<string, string> = {};
-    headers.forEach((header, i) => {
-      obj[header] = values[i] || "";
-    });
-    return obj;
+  const result = Papa.parse<Record<string, string>>(csv, {
+    header: true,
+    delimiter,
+    skipEmptyLines: true,
   });
+  return result.data;
 }
 
 export function jsonToCsv(data: Record<string, unknown>[], delimiter: string = ","): string {
-  if (data.length === 0) return "";
-
-  const headers = Object.keys(data[0]);
-  const headerRow = headers.join(delimiter);
-
-  const rows = data.map((row) =>
-    headers.map((h) => {
-      const val = row[h];
-      const str = val === null || val === undefined ? "" : String(val);
-      return str.includes(delimiter) || str.includes('"') || str.includes("\n")
-        ? `"${str.replace(/"/g, '""')}"`
-        : str;
-    }).join(delimiter)
-  );
-
-  return [headerRow, ...rows].join("\n");
+  return Papa.unparse(data, { delimiter });
 }

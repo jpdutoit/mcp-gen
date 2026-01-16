@@ -565,6 +565,10 @@ export async function generateMcpServer(options: GeneratorOptions): Promise<void
   console.log("Bundling...");
   const toolsBundlePath = join(outputDir, "tools.mjs");
 
+  // Resolve node_modules from the entry file's directory for user dependencies
+  const entryDir = dirname(entryPath);
+  const entryNodeModules = join(entryDir, "node_modules");
+
   await build({
     entryPoints: [entryPath],
     bundle: true,
@@ -572,6 +576,7 @@ export async function generateMcpServer(options: GeneratorOptions): Promise<void
     target: "node22",
     format: "esm",
     outfile: toolsBundlePath,
+    nodePaths: [entryNodeModules],
   });
 
   // Step 2: Generate and write the server code that imports from the tools bundle

@@ -1,0 +1,11 @@
+{
+  "name": "data-processor-example",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "papaparse": "^5.5.2"
+  },
+  "devDependencies": {
+    "@types/papaparse": "^5.3.15"
+  }
+}

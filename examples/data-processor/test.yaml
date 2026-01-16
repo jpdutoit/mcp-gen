@@ -274,7 +274,7 @@ tools:
           equals:
             content:
               - type: "text"
-                text: "name,age\nAlice,30\nBob,25"
+                text: "name,age\r\nAlice,30\r\nBob,25"
 
     - name: "format date string"
       tool: formatDateString
