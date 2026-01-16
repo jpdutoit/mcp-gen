@@ -2,6 +2,24 @@
 
 Generate MCP (Model Context Protocol) servers from TypeScript functions using JSDoc comments.
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Usage](#usage)
+- [Defining Tools](#defining-tools)
+  - [Structured Output](#structured-output)
+- [Defining Prompts](#defining-prompts)
+  - [String Return](#string-return)
+  - [GetPromptResult Return](#getpromptresult-return)
+- [Defining Resources](#defining-resources)
+  - [Resource Return Types](#resource-return-types)
+  - [Templated Resources](#templated-resources)
+  - [Listing Templated Resources](#listing-templated-resources)
+  - [Subscribable Resources](#subscribable-resources)
+- [Scripts](#scripts)
+- [Examples](#examples)
+- [License](#license)
+
 ## Installation
 
 ```bash
