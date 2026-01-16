@@ -4,7 +4,7 @@ import { readFile, writeFile, readdir, stat } from "fs/promises";
  * Read the contents of a file
  * @param path The path to the file to read
  */
-export async function readFileContents(path: string): Promise<string> {
+export async function readFileContents(path: string) {
   return readFile(path, "utf-8");
 }
 
@@ -13,7 +13,7 @@ export async function readFileContents(path: string): Promise<string> {
  * @param path The path to the file to write
  * @param content The content to write to the file
  */
-export async function writeFileContents(path: string, content: string): Promise<string> {
+export async function writeFileContents(path: string, content: string) {
   await writeFile(path, content, "utf-8");
   return `Successfully wrote to ${path}`;
 }
@@ -22,7 +22,7 @@ export async function writeFileContents(path: string, content: string): Promise<
  * List files in a directory
  * @param dirPath The path to the directory to list
  */
-export async function listDirectory(dirPath: string): Promise<string[]> {
+export async function listDirectory(dirPath: string) {
   return readdir(dirPath);
 }
 
@@ -30,12 +30,7 @@ export async function listDirectory(dirPath: string): Promise<string[]> {
  * Get file statistics including size and modification time
  * @param path The path to the file
  */
-export async function getFileStats(path: string): Promise<{
-  size: number;
-  isDirectory: boolean;
-  modified: string;
-  created: string;
-}> {
+export async function getFileStats(path: string) {
   const stats = await stat(path);
   return {
     size: stats.size,
@@ -49,7 +44,7 @@ export async function getFileStats(path: string): Promise<{
  * Count lines in a text file
  * @param path The path to the file
  */
-export async function countLines(path: string): Promise<number> {
+export async function countLines(path: string) {
   const content = await readFile(path, "utf-8");
   return content.split("\n").length;
 }
@@ -61,7 +56,7 @@ export async function countLines(path: string): Promise<number> {
  * @uri sys://cwd
  * @mimeType "text/plain"
  */
-export async function cwd(): Promise<string> {
+export async function cwd() {
   return process.cwd();
 }
 

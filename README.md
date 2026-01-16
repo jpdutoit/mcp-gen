@@ -59,7 +59,7 @@ Export functions with JSDoc comments. Parameters are automatically extracted:
  * @param a First number
  * @param b Second number
  */
-export function add(a: number, b: number): number {
+export function add(a: number, b: number) {
   return a + b;
 }
 ```
@@ -73,12 +73,7 @@ Tools that return object or array types automatically get an `outputSchema` gene
  * Get file statistics including size and modification time
  * @param path The path to the file
  */
-export async function getFileStats(path: string): Promise<{
-  size: number;
-  isDirectory: boolean;
-  modified: string;
-  created: string;
-}> {
+export async function getFileStats(path: string) {
   const stats = await stat(path);
   return {
     size: stats.size,
@@ -131,7 +126,7 @@ Return a string for a user message:
  * @param code The code to review
  * @param language Programming language
  */
-export function codeReviewPrompt(code: string, language: string): string {
+export function codeReviewPrompt(code: string, language: string) {
   return `Please review this ${language} code:\n\n${code}`;
 }
 ```
@@ -170,7 +165,7 @@ Use the `@uri` JSDoc tag to define resources:
  * @uri sys://cwd
  * @mimeType text/plain
  */
-export async function cwd(): Promise<string> {
+export async function cwd() {
   return process.cwd();
 }
 ```
@@ -235,7 +230,7 @@ Add a `.subscribe` function to make resources subscribable. The server will noti
  * Current working directory
  * @uri sys://cwd
  */
-export async function cwd(): Promise<string> {
+export async function cwd() {
   return process.cwd();
 }
 
