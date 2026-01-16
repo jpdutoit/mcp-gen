@@ -1,0 +1,41 @@
+tools:
+  tests:
+    - name: "get current time"
+      tool: getCurrentTime
+      params:
+        timezone: "America/New_York"
+      expect:
+        success: true
+
+    - name: "get time in different timezone"
+      tool: getCurrentTime
+      params:
+        timezone: "Europe/London"
+      expect:
+        success: true
+
+    - name: "generate UUID has correct format"
+      tool: generateUUID
+      params: {}
+      expect:
+        success: true
+        result:
+          contains: "-"
+
+    - name: "delay execution"
+      tool: delay
+      params:
+        ms: 100
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "Delayed for 100ms"
+
+    - name: "get random joke returns content"
+      tool: getRandomJoke
+      params: {}
+      expect:
+        success: true

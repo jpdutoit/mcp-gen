@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "file-ops": {
+      "command": "node",
+      "args": ["/Users/jacques/code/mcp-gen/examples/file-ops/output/server.mjs"]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "string-utils": {
+      "command": "node",
+      "args": ["/Users/jacques/code/mcp-gen/examples/string-utils/output/server.mjs"]
+    }
+  }
+}

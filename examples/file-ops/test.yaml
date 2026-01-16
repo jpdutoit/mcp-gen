@@ -1,0 +1,92 @@
+tools:
+  tests:
+    - name: "list directory"
+      tool: listDirectory
+      params:
+        dirPath: "/Users/jacques/code/mcp-gen/examples"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "[\n  \"async-api\",\n  \"data-processor\",\n  \"file-ops\",\n  \"string-utils\"\n]"
+            structuredContent:
+              results:
+                - "async-api"
+                - "data-processor"
+                - "file-ops"
+                - "string-utils"
+
+    - name: "read file contents"
+      tool: readFileContents
+      params:
+        path: "/Users/jacques/code/mcp-gen/package.json"
+      expect:
+        success: true
+        result:
+          contains: "mcp-gen"
+
+    - name: "get file stats structure"
+      tool: getFileStats
+      params:
+        path: "/Users/jacques/code/mcp-gen/package.json"
+      expect:
+        success: true
+        result:
+          schema:
+            type: object
+            required:
+              - content
+              - structuredContent
+            properties:
+              structuredContent:
+                type: object
+                required:
+                  - size
+                  - isDirectory
+                  - modified
+                  - created
+                properties:
+                  size:
+                    type: number
+                  isDirectory:
+                    type: boolean
+                  modified:
+                    type: string
+                  created:
+                    type: string
+
+    - name: "count lines"
+      tool: countLines
+      params:
+        path: "/Users/jacques/code/mcp-gen/package.json"
+      expect:
+        success: true
+        result:
+          contains: "40"
+
+    - name: "write file contents"
+      tool: writeFileContents
+      params:
+        path: "/tmp/mcp-test-file.txt"
+        content: "Hello from MCP test"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "Successfully wrote to /tmp/mcp-test-file.txt"
+
+    - name: "read written file"
+      tool: readFileContents
+      params:
+        path: "/tmp/mcp-test-file.txt"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "Hello from MCP test"

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "async-api": {
+      "command": "node",
+      "args": ["/Users/jacques/code/mcp-gen/examples/async-api/output/server.mjs"]
+    }
+  }
+}

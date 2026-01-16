@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm approve-builds:*)",
+      "Bash(pnpm install)",
+      "Bash(pnpm build:*)",
+      "Bash(node ./dist/mcp-gen.js:*)",
+      "Bash(node examples/math-tools/output/server.mjs:*)",
+      "Bash(printf:*)",
+      "Bash(ls:*)",
+      "Bash(pnpm add:*)",
+      "Bash(npx mcp-server-tester:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node dist/mcp-gen.js:*)",
+      "Bash(node examples/data-processor/validators-output/server.mjs:*)",
+      "Bash(pnpm run build:*)",
+      "Bash(node server.mjs:*)",
+      "Bash(pnpm run build:examples:*)",
+      "Bash(pnpm exec mcp-server-tester:*)",
+      "Bash(node /Users/jacques/code/mcp-gen/dist/mcp-gen.js:*)"
+    ]
+  }
+}

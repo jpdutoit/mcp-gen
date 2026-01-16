@@ -1,0 +1,135 @@
+tools:
+  tests:
+    - name: "reverse a string"
+      tool: reverse
+      params:
+        text: "hello"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "olleh"
+
+    - name: "convert to uppercase"
+      tool: toUpperCase
+      params:
+        text: "hello world"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "HELLO WORLD"
+
+    - name: "convert to lowercase"
+      tool: toLowerCase
+      params:
+        text: "HELLO WORLD"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "hello world"
+
+    - name: "count words"
+      tool: wordCount
+      params:
+        text: "the quick brown fox"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "4"
+
+    - name: "count words single word"
+      tool: wordCount
+      params:
+        text: "hello"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "1"
+
+    - name: "check palindrome true"
+      tool: isPalindrome
+      params:
+        text: "racecar"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "true"
+
+    - name: "check palindrome false"
+      tool: isPalindrome
+      params:
+        text: "hello"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "false"
+
+    - name: "palindrome with spaces and punctuation"
+      tool: isPalindrome
+      params:
+        text: "A man a plan a canal Panama"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "true"
+
+    - name: "truncate long string"
+      tool: truncate
+      params:
+        text: "this is a very long string"
+        maxLength: 10
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "this is..."
+
+    - name: "truncate short string unchanged"
+      tool: truncate
+      params:
+        text: "short"
+        maxLength: 10
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "short"
+
+    - name: "reverse alphanumeric"
+      tool: reverse
+      params:
+        text: "abc123"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "321cba"

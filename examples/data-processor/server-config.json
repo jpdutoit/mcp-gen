@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "data-processor": {
+      "command": "node",
+      "args": ["/Users/jacques/code/mcp-gen/examples/data-processor/output/server.mjs"]
+    }
+  }
+}

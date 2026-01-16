@@ -1,0 +1,290 @@
+tools:
+  tests:
+    - name: "validate valid email"
+      tool: checkEmail
+      params:
+        email: "test@example.com"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "{\n  \"valid\": true,\n  \"errors\": []\n}"
+            structuredContent:
+              valid: true
+              errors: []
+
+    - name: "validate invalid email"
+      tool: checkEmail
+      params:
+        email: "invalid-email"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "{\n  \"valid\": false,\n  \"errors\": [\n    \"Invalid email format\"\n  ]\n}"
+            structuredContent:
+              valid: false
+              errors:
+                - "Invalid email format"
+
+    - name: "validate valid URL"
+      tool: checkUrl
+      params:
+        url: "https://example.com"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "{\n  \"valid\": true,\n  \"errors\": []\n}"
+            structuredContent:
+              valid: true
+              errors: []
+
+    - name: "validate invalid URL"
+      tool: checkUrl
+      params:
+        url: "not-a-url"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "{\n  \"valid\": false,\n  \"errors\": [\n    \"Invalid URL format\"\n  ]\n}"
+            structuredContent:
+              valid: false
+              errors:
+                - "Invalid URL format"
+
+    - name: "validate valid JSON"
+      tool: checkJson
+      params:
+        json: '{"key": "value"}'
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "{\n  \"valid\": true,\n  \"errors\": []\n}"
+            structuredContent:
+              valid: true
+              errors: []
+
+    - name: "validate invalid JSON"
+      tool: checkJson
+      params:
+        json: "{invalid json}"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "{\n  \"valid\": false,\n  \"errors\": [\n    \"Invalid JSON: Expected property name or '}' in JSON at position 1 (line 1 column 2)\"\n  ]\n}"
+            structuredContent:
+              valid: false
+              errors:
+                - "Invalid JSON: Expected property name or '}' in JSON at position 1 (line 1 column 2)"
+
+    - name: "convert to snake_case"
+      tool: convertToSnakeCase
+      params:
+        text: "helloWorld"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "hello_world"
+
+    - name: "convert to camelCase"
+      tool: convertToCamelCase
+      params:
+        text: "hello_world"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "helloWorld"
+
+    - name: "convert to kebab-case"
+      tool: convertToKebabCase
+      params:
+        text: "helloWorld"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "hello-world"
+
+    - name: "convert to PascalCase"
+      tool: convertToPascalCase
+      params:
+        text: "hello_world"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "HelloWorld"
+
+    - name: "get text stats"
+      tool: getTextStats
+      params:
+        text: "Hello world. This is a test."
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "{\n  \"characterCount\": 28,\n  \"wordCount\": 6,\n  \"lineCount\": 1,\n  \"sentenceCount\": 2,\n  \"avgWordLength\": 3.8333333333333335,\n  \"avgSentenceLength\": 3\n}"
+            structuredContent:
+              characterCount: 28
+              wordCount: 6
+              lineCount: 1
+              sentenceCount: 2
+              avgWordLength: 3.8333333333333335
+              avgSentenceLength: 3
+
+    - name: "get number stats"
+      tool: getNumberStats
+      params:
+        numbers: "1, 2, 3, 4, 5"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "{\n  \"count\": 5,\n  \"sum\": 15,\n  \"mean\": 3,\n  \"median\": 3,\n  \"min\": 1,\n  \"max\": 5,\n  \"stdDev\": 1.4142135623730951\n}"
+            structuredContent:
+              count: 5
+              sum: 15
+              mean: 3
+              median: 3
+              min: 1
+              max: 5
+              stdDev: 1.4142135623730951
+
+    - name: "find duplicates"
+      tool: getDuplicates
+      params:
+        items: "a, b, a, c, b"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "[\n  \"a\",\n  \"b\"\n]"
+            structuredContent:
+              results:
+                - "a"
+                - "b"
+
+    - name: "format number"
+      tool: formatNum
+      params:
+        num: 1234567.89
+        decimals: 2
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "1,234,567.89"
+
+    - name: "format file size MB"
+      tool: formatFileSize
+      params:
+        bytes: 1048576
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "1 MB"
+
+    - name: "format file size GB"
+      tool: formatFileSize
+      params:
+        bytes: 1073741824
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "1 GB"
+
+    - name: "format duration"
+      tool: formatTime
+      params:
+        milliseconds: 3661000
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "1h 1m 1s"
+
+    - name: "parse CSV returns array of objects"
+      tool: parseCsv
+      params:
+        csv: "name,age\nAlice,30\nBob,25"
+        delimiter: ","
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "[\n  {\n    \"name\": \"Alice\",\n    \"age\": \"30\"\n  },\n  {\n    \"name\": \"Bob\",\n    \"age\": \"25\"\n  }\n]"
+            structuredContent:
+              results:
+                - name: "Alice"
+                  age: "30"
+                - name: "Bob"
+                  age: "25"
+
+    - name: "convert to CSV"
+      tool: toCsv
+      params:
+        json: '[{"name":"Alice","age":30},{"name":"Bob","age":25}]'
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "name,age\nAlice,30\nBob,25"
+
+    - name: "format date string"
+      tool: formatDateString
+      params:
+        dateString: "2024-01-15T12:30:00Z"
+        format: "YYYY-MM-DD"
+      expect:
+        success: true
+        result:
+          equals:
+            content:
+              - type: "text"
+                text: "2024-01-15"
