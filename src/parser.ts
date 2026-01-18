@@ -54,12 +54,27 @@ export interface ParseResult {
   sourceFile: SourceFile;
 }
 
-interface JsDocParseResult {
+interface JsDocBase {
   description: string;
   params: Map<string, string>;
-  uri?: string;
+}
+
+interface JsDocTool extends JsDocBase {
+  kind: "tool";
+}
+
+interface JsDocPrompt extends JsDocBase {
+  kind: "prompt";
+  promptName: string; // empty string = use function name, non-empty = custom name
+}
+
+interface JsDocResource extends JsDocBase {
+  kind: "resource";
+  uri: string;
   mimeType?: string;
 }
+
+type JsDocParseResult = JsDocTool | JsDocPrompt | JsDocResource;
 
 function parseJsDocDescription(jsDoc: string): JsDocParseResult {
   const lines = jsDoc.split("\n");
@@ -67,6 +82,7 @@ function parseJsDocDescription(jsDoc: string): JsDocParseResult {
   const params = new Map<string, string>();
   let uri: string | undefined;
   let mimeType: string | undefined;
+  let promptName: string | undefined;
 
   for (const line of lines) {
     const trimmed = line.replace(/^\s*\*\s?/, "").trim();
@@ -87,6 +103,9 @@ function parseJsDocDescription(jsDoc: string): JsDocParseResult {
         // Remove quotes if present
         mimeType = match[1].trim().replace(/^["']|["']$/g, "");
       }
+    } else if (trimmed.startsWith("@prompt")) {
+      const match = trimmed.match(/@prompt\s*(\S*)/);
+      promptName = match && match[1] ? match[1].trim() : "";
     } else if (trimmed.startsWith("@")) {
       continue;
     } else if (trimmed && !trimmed.startsWith("/")) {
@@ -94,12 +113,15 @@ function parseJsDocDescription(jsDoc: string): JsDocParseResult {
     }
   }
 
-  return {
-    description: descriptionLines.join(" ").trim(),
-    params,
-    uri,
-    mimeType,
-  };
+  const description = descriptionLines.join(" ").trim();
+
+  if (uri) {
+    return { kind: "resource", description, params, uri, mimeType };
+  }
+  if (promptName !== undefined) {
+    return { kind: "prompt", description, params, promptName };
+  }
+  return { kind: "tool", description, params };
 }
 
 function typeToJsonSchemaType(type: Type): string {
@@ -301,9 +323,9 @@ export function parseTypeScriptFile(filePath: string): ParseResult {
     if (jsDocNodes.length === 0) continue;
 
     const jsDocText = jsDocNodes[0].getText();
-    const { description, params: paramDescriptions, uri, mimeType } = parseJsDocDescription(jsDocText);
+    const jsDoc = parseJsDocDescription(jsDocText);
 
-    if (!description) continue;
+    if (!jsDoc.description) continue;
 
     const parameters: ToolParameter[] = [];
 
@@ -315,41 +337,46 @@ export function parseTypeScriptFile(filePath: string): ParseResult {
       parameters.push({
         name: paramName,
         type: typeToJsonSchemaType(paramType),
-        description: paramDescriptions.get(paramName),
+        description: jsDoc.params.get(paramName),
         required: !isOptional,
       });
     }
 
     const returnType = fn.getReturnType();
 
-    if (uri) {
-      // Resource - identified by @uri JSDoc tag
-      const subscribeType = detectSubscribeType(sourceFile, name);
-      const hasList = detectHasList(sourceFile, name);
-      resources.push({
-        name,
-        description,
-        uri,
-        mimeType,
-        parameters,
-        subscribeType,
-        hasList,
-      });
-    } else if (name.endsWith("Prompt")) {
-      prompts.push({
-        name,
-        description,
-        parameters,
-      });
-    } else {
-      const outputSchema = parseTypeToOutputSchema(returnType);
-      tools.push({
-        name,
-        description,
-        parameters,
-        returnType: returnType.getText(),
-        outputSchema,
-      });
+    switch (jsDoc.kind) {
+      case "resource": {
+        const subscribeType = detectSubscribeType(sourceFile, name);
+        const hasList = detectHasList(sourceFile, name);
+        resources.push({
+          name,
+          description: jsDoc.description,
+          uri: jsDoc.uri,
+          mimeType: jsDoc.mimeType,
+          parameters,
+          subscribeType,
+          hasList,
+        });
+        break;
+      }
+      case "prompt":
+        prompts.push({
+          name: jsDoc.promptName || name,
+          description: jsDoc.description,
+          parameters,
+        });
+        break;
+      case "tool": {
+        const outputSchema = parseTypeToOutputSchema(returnType);
+        tools.push({
+          name,
+          description: jsDoc.description,
+          parameters,
+          returnType: returnType.getText(),
+          outputSchema,
+        });
+        break;
+      }
     }
   }
 

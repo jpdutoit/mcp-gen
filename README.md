@@ -114,7 +114,12 @@ Primitive return types (`string`, `number`, `boolean`) are returned as text cont
 
 ## Defining Prompts
 
-Functions ending with `Prompt` become MCP prompts (the suffix is removed in the server).
+Use the `@prompt` JSDoc tag to define prompts. Optionally specify a custom name after the tag (defaults to the function name):
+
+```typescript
+@prompt              // Uses function name as prompt name
+@prompt customName   // Uses "customName" as prompt name
+```
 
 ### String Return
 
@@ -123,24 +128,26 @@ Return a string for a user message:
 ```typescript
 /**
  * Generate a code review prompt
+ * @prompt
  * @param code The code to review
  * @param language Programming language
  */
-export function codeReviewPrompt(code: string, language: string) {
+export function codeReview(code: string, language: string) {
   return `Please review this ${language} code:\n\n${code}`;
 }
 ```
 
 ### GetPromptResult Return
 
-Return a `GetPromptResult`-style object for more control:
+Return a [`GetPromptResult`](https://github.com/modelcontextprotocol/typescript-sdk/blob/71ae3ac/packages/core/src/types/spec.types.ts#L974)-style object for more control:
 
 ```typescript
 /**
  * Generate a prompt to summarize text
+ * @prompt
  * @param text The text to summarize
  */
-export function summarizeTextPrompt(text: string) {
+export function summarizeText(text: string) {
   return {
     messages: [
       {

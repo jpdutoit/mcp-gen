@@ -240,12 +240,9 @@ function generateServerCode(
       const argsDestructure =
         paramNames.length > 0 ? `const { ${paramNames.join(", ")} } = args;` : "";
       const callArgs = paramNames.join(", ");
-      // Remove "Prompt" suffix from the registered name
-      const promptId = prompt.name.replace(/Prompt$/, "");
-
       return `
   server.registerPrompt(
-    "${promptId}",
+    "${prompt.name}",
     {
       description: ${JSON.stringify(prompt.description)},
       argsSchema: ${zodSchema},

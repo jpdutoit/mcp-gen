@@ -53,10 +53,11 @@ export function truncate(text: string, maxLength: number): string {
 
 /**
  * Generate a prompt to summarize the given text
+ * @prompt
  * @param text The text to summarize
  * @param maxSentences Maximum number of sentences in the summary
  */
-export function summarizeTextPrompt(text: string, maxSentences: number = 3) {
+export function summarizeText(text: string, maxSentences: number = 3) {
   return {
     messages: [
       {
@@ -72,19 +73,21 @@ export function summarizeTextPrompt(text: string, maxSentences: number = 3) {
 
 /**
  * Generate a prompt to rewrite text in a different tone
+ * @prompt
  * @param text The text to rewrite
  * @param tone The desired tone (e.g., "formal", "casual", "professional", "friendly")
  */
-export function rewriteTonePrompt(text: string, tone: string): string {
+export function rewriteTone(text: string, tone: string) {
   return `Please rewrite the following text in a ${tone} tone:\n\n${text}\n\nKeep the meaning the same but adjust the style and word choice to match the ${tone} tone.`;
 }
 
 /**
  * Generate a prompt to translate text
+ * @prompt
  * @param text The text to translate
  * @param targetLanguage The language to translate to
  */
-export function translateTextPrompt(text: string, targetLanguage: string): string {
+export function translateText(text: string, targetLanguage: string) {
   return `Please translate the text to "${targetLanguage}". Provide only the translation without any additional explanation:
 ${text}
   `;
