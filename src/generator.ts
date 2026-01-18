@@ -170,8 +170,15 @@ function generateServerCode(
       const hasOutputSchema = tool.outputSchema && (tool.outputSchema.type === "object" || tool.outputSchema.type === "array");
       const isArrayOutput = tool.outputSchema?.type === "array";
 
+      // Check if the return type is a CallToolResult (has a 'content' array property)
+      const isCallToolResult = tool.outputSchema?.type === "object" &&
+        tool.outputSchema.properties?.some(p => p.name === "content" && p.type === "array");
+
       let outputSchemaStr: string;
-      if (hasOutputSchema) {
+      if (isCallToolResult) {
+        // Don't add outputSchema for CallToolResult - it's passed through directly
+        outputSchemaStr = "";
+      } else if (hasOutputSchema) {
         if (isArrayOutput) {
           // Wrap array in object: { results: array }
           outputSchemaStr = `,\n      outputSchema: z.object({ results: ${outputSchemaToZod(tool.outputSchema!, 3)} })`;
@@ -184,7 +191,10 @@ function generateServerCode(
 
       // Generate the return statement based on whether we have outputSchema
       let returnStatement: string;
-      if (hasOutputSchema) {
+      if (isCallToolResult) {
+        // Pass through CallToolResult directly (cast for type safety)
+        returnStatement = `return result as CallToolResult;`;
+      } else if (hasOutputSchema) {
         if (isArrayOutput) {
           // Wrap array result in { results: [] }
           returnStatement = `return {
@@ -485,7 +495,7 @@ ${subscribeMatches}
   return `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import { isInitializeRequest, CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";${subscriptionImports}${resourceTemplateImport}${uriTemplateImport}${promptTypeImport}${resourceSchemaImport}
@@ -712,13 +722,23 @@ export async function generateMcpServer(options: GeneratorOptions): Promise<void
   const entryBasename = basename(entryPath, ".ts");
   try {
     execSync(
-      `npx tsc "${entryPath}" --declaration --emitDeclarationOnly --outDir "${declTempDir}" --skipLibCheck --moduleResolution node`,
+      `npx tsc "${entryPath}" --declaration --emitDeclarationOnly --outDir "${declTempDir}" --skipLibCheck --moduleResolution node --target esnext`,
       { cwd: entryDir, stdio: "pipe" }
     );
     // Copy the generated .d.ts to tools.d.ts
     await cp(join(declTempDir, `${entryBasename}.d.ts`), join(outputDir, "tools.d.ts"));
-  } catch (e) {
+  } catch (e: unknown) {
     warn("Warning: Could not generate type declarations for tools");
+    const err = e as { stderr?: Buffer; stdout?: Buffer; message?: string };
+    if (err.stdout?.length) {
+      warn(err.stdout.toString());
+    }
+    if (err.stderr?.length) {
+      warn(err.stderr.toString());
+    }
+    if (!err.stdout?.length && !err.stderr?.length && err.message) {
+      warn(err.message);
+    }
   } finally {
     // Clean up temp directory
     await rm(declTempDir, { recursive: true, force: true });
