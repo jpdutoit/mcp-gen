@@ -3,17 +3,18 @@ tools:
     - name: "list directory"
       tool: listDirectory
       params:
-        dirPath: "/Users/jacques/code/mcp-gen/examples"
+        dirPath: "./examples"
       expect:
         success: true
         result:
           equals:
             content:
               - type: "text"
-                text: "[\n  \"async-api\",\n  \"data-processor\",\n  \"file-ops\",\n  \"string-utils\"\n]"
+                text: "[\n  \"async-api\",\n  \"chrome-devtools\",\n  \"data-processor\",\n  \"file-ops\",\n  \"string-utils\"\n]"
             structuredContent:
               results:
                 - "async-api"
+                - "chrome-devtools"
                 - "data-processor"
                 - "file-ops"
                 - "string-utils"
@@ -21,7 +22,7 @@ tools:
     - name: "read file contents"
       tool: readFileContents
       params:
-        path: "/Users/jacques/code/mcp-gen/package.json"
+        path: "./package.json"
       expect:
         success: true
         result:
@@ -30,7 +31,7 @@ tools:
     - name: "get file stats structure"
       tool: getFileStats
       params:
-        path: "/Users/jacques/code/mcp-gen/package.json"
+        path: "./package.json"
       expect:
         success: true
         result:
@@ -60,11 +61,11 @@ tools:
     - name: "count lines"
       tool: countLines
       params:
-        path: "/Users/jacques/code/mcp-gen/package.json"
+        path: "./package.json"
       expect:
         success: true
         result:
-          contains: "40"
+          contains: "41"
 
     - name: "write file contents"
       tool: writeFileContents

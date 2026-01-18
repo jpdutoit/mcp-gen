@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "file-ops": {
+      "command": "node",
+      "args": ["examples/file-ops/output/server.mjs"]
+    },
+    "string-utils": {
+      "command": "node",
+      "args": ["examples/string-utils/output/server.mjs"]
+    },
+    "async-api": {
+      "command": "node",
+      "args": ["examples/async-api/output/server.mjs"]
+    },
+    "data-processor": {
+      "command": "node",
+      "args": ["examples/data-processor/output/server.mjs"]
+    },
+    "chrome-devtools": {
+      "command": "node",
+      "args": ["examples/chrome-devtools/output/server.mjs"]
+    }
+  }
+}

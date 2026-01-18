@@ -11,7 +11,8 @@
     "dev": "tsc --watch",
     "inspect": "node scripts/inspect.js",
     "clean": "rm -rf examples/*/output examples/*/*-output",
-    "build:examples": "node scripts/build-examples.js"
+    "build:examples": "node scripts/build-examples.js",
+    "test": "node scripts/test-examples.js"
   },
   "keywords": [
     "mcp",
