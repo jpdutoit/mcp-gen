@@ -231,6 +231,25 @@ systemTime.subscribe = async function() {
 };
 ```
 
+**Templated resources** receive the matched URI variables:
+```typescript
+/**
+ * Get a specific number
+ * @resource sys://numbers/{number}
+ */
+export function numbers(number: number) {
+  return `Your number is ${number}`;
+}
+
+numbers.subscribe = async function*(vars: { number: string }) {
+  // vars.number contains the matched URI parameter
+  while (true) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    yield;
+  }
+};
+```
+
 ## Scripts
 
 ```bash

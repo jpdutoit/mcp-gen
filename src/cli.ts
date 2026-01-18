@@ -32,6 +32,7 @@ program
           entryPath,
           outputDir: tempDir,
           serverName: options.name,
+          useStderr: true,
         });
 
         const serverPath = join(tempDir, "server.mjs");

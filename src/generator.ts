@@ -1,7 +1,8 @@
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, writeFile, cp, rm } from "fs/promises";
 import { basename, dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { build } from "esbuild";
+import { execSync } from "child_process";
 import { parseTypeScriptFile, ToolDefinition, PromptDefinition, ResourceDefinition, ToolParameter, OutputSchema, OutputSchemaProperty } from "./parser.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -10,6 +11,8 @@ export interface GeneratorOptions {
   entryPath: string;
   outputDir: string;
   serverName?: string;
+  /** Use stderr for output (required when stdout is reserved for stdio transport) */
+  useStderr?: boolean;
 }
 
 function paramToZodType(param: ToolParameter): string {
@@ -329,122 +332,34 @@ function generateServerCode(
     ? `\nimport { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";`
     : "";
 
-  // Generate subscription setup code for each subscribable resource
-  const subscriptionSetup = resources
-    .filter((r) => r.subscribeType)
-    .map((resource) => {
-      const uri = resource.uri;
+  // Generate subscription handlers
+  const subscribableResources = resources.filter((r) => r.subscribeType);
 
-      if (resource.subscribeType === "generator") {
-        // Generator-based subscription - keep generator alive while subscribed
-        return `
-// Subscription for ${resource.name}
-const ${resource.name}Generators = new Map<string, { gen: AsyncGenerator<any>; stop: boolean }>();
-
-async function start${resource.name}Subscription(uri: string) {
-  if (${resource.name}Generators.has(uri)) return;
-
-  const gen = ${resource.name}.subscribe();
-  const state = { gen, stop: false };
-  ${resource.name}Generators.set(uri, state);
-
-  (async () => {
-    for await (const _ of gen) {
-      if (state.stop || !subscriptions.has(uri)) {
-        break;
-      }
-      await server.server.notification({
-        method: "notifications/resources/updated",
-        params: { uri }
-      });
-    }
-    ${resource.name}Generators.delete(uri);
-  })();
-}
-
-function stop${resource.name}Subscription(uri: string) {
-  const state = ${resource.name}Generators.get(uri);
-  if (state) {
-    state.stop = true;
-    ${resource.name}Generators.delete(uri);
-  }
-}`;
-      } else {
-        // Async-based subscription - call repeatedly while subscribed
-        return `
-// Subscription for ${resource.name}
-const ${resource.name}Intervals = new Map<string, boolean>();
-
-async function start${resource.name}Subscription(uri: string) {
-  if (${resource.name}Intervals.has(uri)) return;
-
-  ${resource.name}Intervals.set(uri, true);
-
-  (async () => {
-    while (${resource.name}Intervals.get(uri) && subscriptions.has(uri)) {
-      await ${resource.name}.subscribe();
-      if (!${resource.name}Intervals.get(uri) || !subscriptions.has(uri)) break;
-      await server.server.notification({
-        method: "notifications/resources/updated",
-        params: { uri }
-      });
-    }
-    ${resource.name}Intervals.delete(uri);
-  })();
-}
-
-function stop${resource.name}Subscription(uri: string) {
-  ${resource.name}Intervals.delete(uri);
-}`;
-      }
-    })
-    .join("\n");
-
-  // Generate subscribe/unsubscribe handlers
-  const subscriptionHandlers = hasSubscriptions
-    ? `
-const subscriptions = new Set<string>();
-
-server.server.setRequestHandler(SubscribeRequestSchema, async (req) => {
-  const uri = req.params.uri;
-  subscriptions.add(uri);
-
-  // Start the appropriate subscription
-${resources
-  .filter((r) => r.subscribeType)
-  .map((r) => {
-    const uri = r.uri;
-    return `  if (uri.startsWith("${uri.split("{")[0]}")) {
-    await start${r.name}Subscription(uri);
+  // Generate the subscribe matching logic
+  // Both helpers take functions that can be called repeatedly in a loop
+  const subscribeMatches = subscribableResources.map((r) => {
+    const isTemplated = r.parameters.length > 0;
+    const helper = r.subscribeType === "generator" ? "__generatorSubscription" : "__asyncSubscription";
+    if (isTemplated) {
+      return `  {
+    const match = new UriTemplate("${r.uri}").match(uri);
+    if (match) return ${helper}(uri, () => ${r.name}.subscribe(match));
   }`;
-  })
-  .join("\n")}
-
-  return {};
-});
-
-server.server.setRequestHandler(UnsubscribeRequestSchema, async (req) => {
-  const uri = req.params.uri;
-  subscriptions.delete(uri);
-
-  // Stop the appropriate subscription
-${resources
-  .filter((r) => r.subscribeType)
-  .map((r) => {
-    const uri = r.uri;
-    return `  if (uri.startsWith("${uri.split("{")[0]}")) {
-    stop${r.name}Subscription(uri);
-  }`;
-  })
-  .join("\n")}
-
-  return {};
-});`
-    : "";
+    } else {
+      return `  if (uri === "${r.uri}") return ${helper}(uri, () => ${r.name}.subscribe());`;
+    }
+  }).join("\n");
 
   const hasTemplatedResources = resources.some((r) => r.parameters.length > 0);
-  const resourceTemplateImport = hasTemplatedResources
-    ? `\nimport { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";`
+  const hasTemplatedSubscriptions = subscribableResources.some((r) => r.parameters.length > 0);
+
+  // Import ResourceTemplate for resource registration, UriTemplate for subscription matching
+  let resourceTemplateImport = "";
+  if (hasTemplatedResources) {
+    resourceTemplateImport = `\nimport { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";`;
+  }
+  const uriTemplateImport = hasTemplatedSubscriptions
+    ? `\nimport { UriTemplate } from "@modelcontextprotocol/sdk/shared/uriTemplate.js";`
     : "";
 
   const hasPrompts = prompts.length > 0;
@@ -500,23 +415,78 @@ function __parseListItem(item: string | { uri: string; name?: string; mimeType?:
 }
 ` : "";
 
+  // Subscription helpers go inside getServer since they have per-instance state
+  const subscriptionHelpersInner = hasSubscriptions
+    ? `
+  // Subscription state management (per-server instance)
+  const __subscriptions = new Map<string, { stop: boolean }>();
+
+  async function __notifyUpdated(uri: string) {
+    await server.server.notification({ method: "notifications/resources/updated", params: { uri } });
+  }
+
+  function __generatorSubscription(uri: string, createGen: () => AsyncGenerator<any>): Record<string, never> {
+    const state = { stop: false };
+    __subscriptions.set(uri, state);
+    (async () => {
+      while (!state.stop) {
+        for await (const _ of createGen()) {
+          if (state.stop) break;
+          await __notifyUpdated(uri);
+        }
+      }
+      __subscriptions.delete(uri);
+    })();
+    return {};
+  }
+
+  function __asyncSubscription(uri: string, poll: () => Promise<void>): Record<string, never> {
+    const state = { stop: false };
+    __subscriptions.set(uri, state);
+    (async () => {
+      while (!state.stop) {
+        await poll();
+        if (!state.stop) await __notifyUpdated(uri);
+      }
+      __subscriptions.delete(uri);
+    })();
+    return {};
+  }
+
+  server.server.setRequestHandler(SubscribeRequestSchema, async (req): Promise<Record<string, never>> => {
+    const uri = req.params.uri;
+    if (__subscriptions.has(uri)) return {};
+${subscribeMatches}
+    return {};
+  });
+
+  server.server.setRequestHandler(UnsubscribeRequestSchema, async (req): Promise<Record<string, never>> => {
+    const state = __subscriptions.get(req.params.uri);
+    if (state) state.stop = true;
+    return {};
+  });`
+    : "";
+
   return `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";${subscriptionImports}${resourceTemplateImport}${promptTypeImport}${resourceSchemaImport}
+import { z } from "zod";${subscriptionImports}${resourceTemplateImport}${uriTemplateImport}${promptTypeImport}${resourceSchemaImport}
 ${importStatement}
-
-const server = new McpServer({
-  name: "${serverName}",
-  version: "1.0.0",
-}${capabilities});
 ${resourceHelpers}${listHelpers}
+export function getServer() {
+  const server = new McpServer({
+    name: "${serverName}",
+    version: "1.0.0",
+  }${capabilities});
 ${toolRegistrations}
 ${promptRegistrations}
 ${resourceRegistrations}
-${subscriptionSetup}
-${subscriptionHandlers}
+${subscriptionHelpersInner}
+
+  return server;
+}
 
 async function main() {
+  const server = getServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
@@ -526,7 +496,13 @@ main().catch(console.error);
 }
 
 export async function generateMcpServer(options: GeneratorOptions): Promise<void> {
-  const { entryPath, outputDir, serverName } = options;
+  const { entryPath, outputDir, serverName, useStderr } = options;
+
+  // Use stderr when stdout is reserved for stdio transport
+  const log = useStderr
+    ? (...args: unknown[]) => console.error(...args)
+    : (...args: unknown[]) => console.log(...args);
+  const warn = (...args: unknown[]) => console.error(...args);
 
   const name = serverName || basename(entryPath, ".ts");
 
@@ -540,19 +516,19 @@ export async function generateMcpServer(options: GeneratorOptions): Promise<void
   }
 
   if (tools.length > 0) {
-    console.log(`Found ${tools.length} tool(s): ${tools.map((t) => t.name).join(", ")}`);
+    log(`Found ${tools.length} tool(s): ${tools.map((t) => t.name).join(", ")}`);
   }
   if (prompts.length > 0) {
-    console.log(`Found ${prompts.length} prompt(s): ${prompts.map((p) => p.name).join(", ")}`);
+    log(`Found ${prompts.length} prompt(s): ${prompts.map((p) => p.name).join(", ")}`);
   }
   if (resources.length > 0) {
-    console.log(`Found ${resources.length} resource(s): ${resources.map((r) => r.name).join(", ")}`);
+    log(`Found ${resources.length} resource(s): ${resources.map((r) => r.name).join(", ")}`);
   }
 
   await mkdir(outputDir, { recursive: true });
 
   // Step 1: Bundle the user's entry file with all its dependencies
-  console.log("Bundling...");
+  log("Bundling...");
   const toolsBundlePath = join(outputDir, "tools.mjs");
 
   // Resolve node_modules from the entry file's directory for user dependencies
@@ -569,13 +545,30 @@ export async function generateMcpServer(options: GeneratorOptions): Promise<void
     nodePaths: [entryNodeModules],
   });
 
+  // Step 1b: Generate type declarations for tools using tsc
+  const declTempDir = join(outputDir, ".decl-temp");
+  const entryBasename = basename(entryPath, ".ts");
+  try {
+    execSync(
+      `npx tsc "${entryPath}" --declaration --emitDeclarationOnly --outDir "${declTempDir}" --skipLibCheck --moduleResolution node`,
+      { cwd: entryDir, stdio: "pipe" }
+    );
+    // Copy the generated .d.ts to tools.d.ts
+    await cp(join(declTempDir, `${entryBasename}.d.ts`), join(outputDir, "tools.d.ts"));
+  } catch (e) {
+    warn("Warning: Could not generate type declarations for tools");
+  } finally {
+    // Clean up temp directory
+    await rm(declTempDir, { recursive: true, force: true });
+  }
+
   // Step 2: Generate and write the server code that imports from the tools bundle
   const serverCode = generateServerCode(tools, prompts, resources, name);
   const serverPath = join(outputDir, "server.ts");
   await writeFile(serverPath, serverCode);
 
   // Step 3: Bundle the server with the MCP SDK
-  console.log("Bundling server...");
+  log("Bundling server...");
 
   // Resolve node_modules from mcp-gen installation to find @modelcontextprotocol/sdk
   const mcpGenNodeModules = join(__dirname, "..", "node_modules");
@@ -613,8 +606,9 @@ export async function generateMcpServer(options: GeneratorOptions): Promise<void
     JSON.stringify(packageJson, null, 2)
   );
 
-  console.log(`Generated files:
+  log(`Generated files:
   - ${join(outputDir, "tools.mjs")} (bundled tools)
+  - ${join(outputDir, "tools.d.ts")} (type declarations)
   - ${join(outputDir, "server.ts")} (server source)
   - ${join(outputDir, "server.mjs")} (bundled server)
   - ${join(outputDir, "package.json")}`);

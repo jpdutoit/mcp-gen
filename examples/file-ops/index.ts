@@ -96,7 +96,11 @@ export function numbers(number: number) {
 }
 
 numbers.list = function() {
-  return Array.from({ length: 10 }, (_, i) => `sys://numbers/${i + 1}`
-  );
+  return Array.from({ length: 10 }, (_, i) => `sys://numbers/${i + 1}`);
+}
+
+// Subscribe receives the matched URI variables for templated resources
+numbers.subscribe = async function(vars: { number: string }) {
+  await new Promise((resolve) => setTimeout(resolve, 1000));
 }
 
