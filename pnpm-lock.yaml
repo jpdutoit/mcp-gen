@@ -37,6 +37,12 @@ importers:
         specifier: ^1.4.1
         version: 1.4.1(hono@4.11.4)(react@19.2.3)
 
+  examples/chrome-devtools:
+    devDependencies:
+      devtools-protocol:
+        specifier: ^0.0.1568893
+        version: 0.0.1568893
+
   examples/data-processor:
     dependencies:
       papaparse:
@@ -947,6 +953,9 @@ packages:
 
   detect-node-es@1.1.0:
     resolution: {integrity: sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ==}
+
+  devtools-protocol@0.0.1568893:
+    resolution: {integrity: sha512-jSwwNnDwRQ5CQh5DNhnmQGms/pkdOUIrJDlKf7VR9bl/nRlcifyxe1jieFnP7bL1vUIElTcLzxu3AYB8YBBpjQ==}
 
   diff-match-patch@1.0.5:
     resolution: {integrity: sha512-IayShXAgj/QMXgB0IWmKx+rOPuGMhqm5w6jvFxmVenXKIzRqTAAsbBPT3kWQeGANj3jGgvcvv4yK6SxqYmikgw==}
@@ -2435,6 +2444,8 @@ snapshots:
   dequal@2.0.3: {}
 
   detect-node-es@1.1.0: {}
+
+  devtools-protocol@0.0.1568893: {}
 
   diff-match-patch@1.0.5: {}
 
