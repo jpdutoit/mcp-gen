@@ -61,11 +61,12 @@ interface JsDocBase {
 
 interface JsDocTool extends JsDocBase {
   kind: "tool";
+  toolName?: string; // undefined = use function name, non-empty = custom name
 }
 
 interface JsDocPrompt extends JsDocBase {
   kind: "prompt";
-  promptName: string; // empty string = use function name, non-empty = custom name
+  promptName?: string; // undefined = use function name, non-empty = custom name
 }
 
 interface JsDocResource extends JsDocBase {
@@ -82,7 +83,9 @@ function parseJsDocDescription(jsDoc: string): JsDocParseResult {
   const params = new Map<string, string>();
   let uri: string | undefined;
   let mimeType: string | undefined;
+  let toolName: string | undefined;
   let promptName: string | undefined;
+  let isPrompt = false;
 
   for (const line of lines) {
     const trimmed = line.replace(/^\s*\*\s?/, "").trim();
@@ -92,8 +95,8 @@ function parseJsDocDescription(jsDoc: string): JsDocParseResult {
       if (match) {
         params.set(match[1], match[2].trim());
       }
-    } else if (trimmed.startsWith("@uri")) {
-      const match = trimmed.match(/@uri\s+(.+)/);
+    } else if (trimmed.startsWith("@resource")) {
+      const match = trimmed.match(/@resource\s+(.+)/);
       if (match) {
         uri = match[1].trim();
       }
@@ -103,9 +106,13 @@ function parseJsDocDescription(jsDoc: string): JsDocParseResult {
         // Remove quotes if present
         mimeType = match[1].trim().replace(/^["']|["']$/g, "");
       }
+    } else if (trimmed.startsWith("@tool")) {
+      const match = trimmed.match(/@tool\s+(\S+)/);
+      toolName = match ? match[1].trim() : undefined;
     } else if (trimmed.startsWith("@prompt")) {
-      const match = trimmed.match(/@prompt\s*(\S*)/);
-      promptName = match && match[1] ? match[1].trim() : "";
+      isPrompt = true;
+      const match = trimmed.match(/@prompt\s+(\S+)/);
+      promptName = match ? match[1].trim() : undefined;
     } else if (trimmed.startsWith("@")) {
       continue;
     } else if (trimmed && !trimmed.startsWith("/")) {
@@ -118,10 +125,11 @@ function parseJsDocDescription(jsDoc: string): JsDocParseResult {
   if (uri) {
     return { kind: "resource", description, params, uri, mimeType };
   }
-  if (promptName !== undefined) {
+  if (isPrompt) {
     return { kind: "prompt", description, params, promptName };
   }
-  return { kind: "tool", description, params };
+  // Default to tool (with or without explicit @tool tag)
+  return { kind: "tool", description, params, toolName };
 }
 
 function typeToJsonSchemaType(type: Type): string {
@@ -369,7 +377,7 @@ export function parseTypeScriptFile(filePath: string): ParseResult {
       case "tool": {
         const outputSchema = parseTypeToOutputSchema(returnType);
         tools.push({
-          name,
+          name: jsDoc.toolName || name,
           description: jsDoc.description,
           parameters,
           returnType: returnType.getText(),

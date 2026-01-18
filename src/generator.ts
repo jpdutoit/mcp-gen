@@ -276,47 +276,17 @@ function generateServerCode(
       const paramNames = resource.parameters.map((p) => p.name);
       const defaultMimeType = resource.mimeType ? JSON.stringify(resource.mimeType) : `"text/plain"`;
 
-      // Build the read callback using MCP SDK schemas for validation
-      // Type assertion needed because TS narrows to 'never' after string check for functions returning string
-      const resultType = `string | { text: string; mimeType?: string } | { blob: string; mimeType?: string }`;
+      // Build the read callback using the helper function
       let readCallback: string;
       if (hasParams) {
-        // Resource with URI template parameters - callback receives (uri, variables, extra)
         const argsExtract = paramNames.map((p) => `const ${p} = variables.${p} as string;`).join("\n      ");
         readCallback = `async (uri, variables) => {
       ${argsExtract}
-      const result = await ${resource.name}(${paramNames.join(", ")}) as ${resultType};
-      if (typeof result === "string") {
-        return {
-          contents: [TextResourceContentsSchema.parse({ uri: uri.href, mimeType: ${defaultMimeType}, text: result })],
-        };
-      }
-      if ("blob" in result) {
-        return {
-          contents: [BlobResourceContentsSchema.parse({ uri: uri.href, mimeType: result.mimeType ?? ${defaultMimeType}, blob: result.blob })],
-        };
-      }
-      return {
-        contents: [TextResourceContentsSchema.parse({ uri: uri.href, mimeType: result.mimeType ?? ${defaultMimeType}, text: result.text })],
-      };
+      return __parseResourceResult(await ${resource.name}(${paramNames.join(", ")}), uri.href, ${defaultMimeType});
     }`;
       } else {
-        // Resource without parameters
         readCallback = `async (uri) => {
-      const result = await ${resource.name}() as ${resultType};
-      if (typeof result === "string") {
-        return {
-          contents: [TextResourceContentsSchema.parse({ uri: uri.href, mimeType: ${defaultMimeType}, text: result })],
-        };
-      }
-      if ("blob" in result) {
-        return {
-          contents: [BlobResourceContentsSchema.parse({ uri: uri.href, mimeType: result.mimeType ?? ${defaultMimeType}, blob: result.blob })],
-        };
-      }
-      return {
-        contents: [TextResourceContentsSchema.parse({ uri: uri.href, mimeType: result.mimeType ?? ${defaultMimeType}, text: result.text })],
-      };
+      return __parseResourceResult(await ${resource.name}(), uri.href, ${defaultMimeType});
     }`;
       }
 
@@ -327,19 +297,9 @@ function generateServerCode(
       let uriArg: string;
       if (hasParams) {
         if (resource.hasList) {
-          // Generate list callback that handles both string[] and object[] returns
           const listCallback = `async () => {
         const items = await ${resource.name}.list();
-        const getName = (uri: string) => uri.split("/").pop() || uri;
-        return {
-          resources: items.map((item: string | { uri: string; name?: string; mimeType?: string }) => {
-            if (typeof item === "string") {
-              return { uri: item, name: getName(item), mimeType: ${defaultMimeType} };
-            }
-            const data = ResourceSchema.parse(item);
-            return { ...data, name: data.name ?? getName(data.uri), mimeType: data.mimeType ?? ${defaultMimeType} };
-          }),
-        };
+        return { resources: items.map((item: any) => __parseListItem(item, ${defaultMimeType})) };
       }`;
           uriArg = `new ResourceTemplate("${mcpUri}", { list: ${listCallback} })`;
         } else {
@@ -498,7 +458,7 @@ ${resources
   // Build types imports from MCP SDK
   const typesImports: string[] = [];
   if (hasResources) {
-    typesImports.push("TextResourceContentsSchema", "BlobResourceContentsSchema");
+    typesImports.push("TextResourceContentsSchema", "BlobResourceContentsSchema", "ReadResourceResultSchema");
   }
   if (hasListResources) {
     typesImports.push("ResourceSchema");
@@ -506,6 +466,39 @@ ${resources
   const resourceSchemaImport = typesImports.length > 0
     ? `\nimport { ${typesImports.join(", ")} } from "@modelcontextprotocol/sdk/types.js";`
     : "";
+
+  // Helper functions injected when resources are used
+  const resourceHelpers = hasResources ? `
+// Helper: Parse resource result into ReadResourceResult format
+function __parseResourceResult(
+  result: string | { text: string; mimeType?: string } | { blob: string; mimeType?: string } | { contents: any[] },
+  uri: string,
+  defaultMimeType: string
+) {
+  if (typeof result === "string") {
+    return { contents: [TextResourceContentsSchema.parse({ uri, mimeType: defaultMimeType, text: result })] };
+  }
+  if ("contents" in result) {
+    return ReadResourceResultSchema.parse(result);
+  }
+  if ("blob" in result) {
+    return { contents: [BlobResourceContentsSchema.parse({ uri, mimeType: result.mimeType ?? defaultMimeType, blob: result.blob })] };
+  }
+  return { contents: [TextResourceContentsSchema.parse({ uri, mimeType: result.mimeType ?? defaultMimeType, text: result.text })] };
+}
+` : "";
+
+  const listHelpers = hasListResources ? `
+// Helper: Parse list item into Resource format
+function __parseListItem(item: string | { uri: string; name?: string; mimeType?: string }, defaultMimeType: string) {
+  const getName = (uri: string) => uri.split("/").pop() || uri;
+  if (typeof item === "string") {
+    return { uri: item, name: getName(item), mimeType: defaultMimeType };
+  }
+  const data = ResourceSchema.parse(item);
+  return { ...data, name: data.name ?? getName(data.uri), mimeType: data.mimeType ?? defaultMimeType };
+}
+` : "";
 
   return `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -516,7 +509,7 @@ const server = new McpServer({
   name: "${serverName}",
   version: "1.0.0",
 }${capabilities});
-
+${resourceHelpers}${listHelpers}
 ${toolRegistrations}
 ${promptRegistrations}
 ${resourceRegistrations}

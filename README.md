@@ -51,7 +51,12 @@ This will generate a complete MCP server package in the output directory with:
 
 ## Defining Tools
 
-Export functions with JSDoc comments. Parameters are automatically extracted:
+Export functions with JSDoc comments. By default, exported functions become tools. Use the optional `@tool` tag to specify a custom name:
+
+```typescript
+@tool              // Uses function name as tool name (optional, this is the default)
+@tool customName   // Uses "customName" as tool name
+```
 
 ```typescript
 /**
@@ -66,51 +71,11 @@ export function add(a: number, b: number) {
 
 ### Structured Output
 
-Tools that return object or array types automatically get an `outputSchema` generated from the TypeScript return type. The result is returned as `structuredContent` alongside a `content` fallback:
+Return types are handled as follows:
 
-```typescript
-/**
- * Get file statistics including size and modification time
- * @param path The path to the file
- */
-export async function getFileStats(path: string) {
-  const stats = await stat(path);
-  return {
-    size: stats.size,
-    isDirectory: stats.isDirectory(),
-    modified: stats.mtime.toISOString(),
-    created: stats.birthtime.toISOString(),
-  };
-}
-```
-
-This generates:
-```typescript
-server.registerTool(
-  "getFileStats",
-  {
-    description: "Get file statistics...",
-    inputSchema: { path: z.string().describe("The path to the file") },
-    outputSchema: z.object({
-      size: z.number(),
-      isDirectory: z.boolean(),
-      modified: z.string(),
-      created: z.string()
-    }),
-  },
-  async (args) => {
-    const result = await getFileStats(args.path);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-      structuredContent: result,
-    };
-  }
-);
-```
-
-Array return types are automatically wrapped in `{ results: T[] }` since MCP requires object types for `structuredContent`.
-
-Primitive return types (`string`, `number`, `boolean`) are returned as text content only.
+- **Objects** - Returned as `structuredContent` with an auto-generated `outputSchema`, plus a JSON text fallback in `content`
+- **Arrays** - Wrapped in `{ results: T[] }` since MCP requires object types for `structuredContent`
+- **Primitives** (`string`, `number`, `boolean`) - Returned as text content only
 
 ## Defining Prompts
 
@@ -164,12 +129,12 @@ export function summarizeText(text: string) {
 
 ## Defining Resources
 
-Use the `@uri` JSDoc tag to define resources:
+Use the `@resource` JSDoc tag to define resources:
 
 ```typescript
 /**
  * Get the current working directory
- * @uri sys://cwd
+ * @resource sys://cwd
  * @mimeType text/plain
  */
 export async function cwd() {
@@ -181,13 +146,14 @@ export async function cwd() {
 
 Resources can return:
 - A plain string
-- An object with `text` and optional `mimeType`
-- An object with `blob` (base64) and optional `mimeType`
+- A [`TextResourceContents`](https://github.com/modelcontextprotocol/typescript-sdk/blob/71ae3ac/packages/core/src/types/spec.types.ts#L905) object: `{ text, mimeType? }`
+- A [`BlobResourceContents`](https://github.com/modelcontextprotocol/typescript-sdk/blob/71ae3ac/packages/core/src/types/spec.types.ts#L915) object: `{ blob, mimeType? }`
+- A full [`ReadResourceResult`](https://github.com/modelcontextprotocol/typescript-sdk/blob/71ae3ac/packages/core/src/types/spec.types.ts#L726) with `contents` array
 
 ```typescript
 /**
  * Current system time
- * @uri sys://time
+ * @resource sys://time
  */
 export function systemTime() {
   return {
@@ -205,7 +171,7 @@ Use `{param}` syntax in the URI for templated resources:
 /**
  * Get a specific number
  * @param number The number to return
- * @uri sys://numbers/{number}
+ * @resource sys://numbers/{number}
  * @mimeType text/plain
  */
 export function numbers(number: number) {
@@ -215,14 +181,14 @@ export function numbers(number: number) {
 
 ### Listing Templated Resources
 
-Add a `.list` function to enumerate available resources:
+Add a `.list` function to enumerate available resources. Return an array of URI strings or [`Resource`](https://github.com/modelcontextprotocol/typescript-sdk/blob/71ae3ac/packages/core/src/types/spec.types.ts#L805) objects:
 
 ```typescript
 numbers.list = function() {
   // Return array of URIs (strings)
   return Array.from({ length: 10 }, (_, i) => `sys://numbers/${i + 1}`);
 
-  // Or return array of objects with uri, name, mimeType, description
+  // Or return array of Resource objects with uri, name, mimeType, description
   // return [{ uri: "sys://numbers/1", name: "One" }, ...]
 };
 ```
@@ -235,7 +201,7 @@ Add a `.subscribe` function to make resources subscribable. The server will noti
 ```typescript
 /**
  * Current working directory
- * @uri sys://cwd
+ * @resource sys://cwd
  */
 export async function cwd() {
   return process.cwd();
@@ -253,7 +219,7 @@ cwd.subscribe = async function*() {
 ```typescript
 /**
  * System time
- * @uri sys://time
+ * @resource sys://time
  */
 export function systemTime() {
   return { text: new Date().toISOString() };

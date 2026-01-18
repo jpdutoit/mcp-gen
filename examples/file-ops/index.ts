@@ -53,7 +53,7 @@ export async function countLines(path: string) {
 /**
  * Get the current working directory
  * 
- * @uri sys://cwd
+ * @resource sys://cwd
  * @mimeType "text/plain"
  */
 export async function cwd() {
@@ -70,7 +70,7 @@ cwd.subscribe = async function*() {
 
 /**
  * Current system time
- * @uri sys://time
+ * @resource sys://time
  */
 export function systemTime() {
   return {
@@ -88,7 +88,7 @@ systemTime.subscribe = async function() {
  * All the numbers
  * @param number Which number you want to return
  *
- * @uri sys://numbers/{number}
+ * @resource sys://numbers/{number}
  * @mimeType text/plain
  */
 export function numbers(number: number) {
