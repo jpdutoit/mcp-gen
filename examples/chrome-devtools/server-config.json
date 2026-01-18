@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "node",
+      "args": ["/Users/jacques/code/mcp-gen/examples/chrome-devtools/output/server.mjs"]
+    }
+  }
+}

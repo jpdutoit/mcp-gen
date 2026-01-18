@@ -1,0 +1,52 @@
+tools:
+  tests:
+    # Note: These tests require Chrome running with --remote-debugging-port=9222
+    # Most tests will fail without a running Chrome instance
+
+    - name: "get browser version"
+      tool: getBrowserVersion
+      params:
+        port: 9222
+      expect:
+        success: true
+        result:
+          schema:
+            type: object
+            required:
+              - content
+              - structuredContent
+            properties:
+              structuredContent:
+                type: object
+                required:
+                  - browser
+                  - protocolVersion
+                  - userAgent
+                properties:
+                  browser:
+                    type: string
+                  protocolVersion:
+                    type: string
+                  userAgent:
+                    type: string
+
+    - name: "list targets"
+      tool: listTargets
+      params:
+        port: 9222
+      expect:
+        success: true
+        result:
+          schema:
+            type: object
+            required:
+              - content
+              - structuredContent
+            properties:
+              structuredContent:
+                type: object
+                required:
+                  - results
+                properties:
+                  results:
+                    type: array
