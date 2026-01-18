@@ -1,4 +1,4 @@
-import { mkdir, writeFile, cp, rm } from "fs/promises";
+import { mkdir, writeFile, cp, rm, readFile } from "fs/promises";
 import { basename, dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { build } from "esbuild";
@@ -421,19 +421,30 @@ function __parseListItem(item: string | { uri: string; name?: string; mimeType?:
   // Subscription state management (per-server instance)
   const __subscriptions = new Map<string, { stop: boolean }>();
 
-  async function __notifyUpdated(uri: string) {
-    await server.server.notification({ method: "notifications/resources/updated", params: { uri } });
+  async function __notifyUpdated(uri: string, state: { stop: boolean }): Promise<boolean> {
+    try {
+      await server.server.notification({ method: "notifications/resources/updated", params: { uri } });
+      return true;
+    } catch {
+      // Server disconnected, stop the subscription
+      state.stop = true;
+      return false;
+    }
   }
 
   function __generatorSubscription(uri: string, createGen: () => AsyncGenerator<any>): Record<string, never> {
     const state = { stop: false };
     __subscriptions.set(uri, state);
     (async () => {
-      while (!state.stop) {
-        for await (const _ of createGen()) {
-          if (state.stop) break;
-          await __notifyUpdated(uri);
+      try {
+        outer: while (!state.stop) {
+          for await (const _ of createGen()) {
+            if (state.stop) break outer;
+            if (!await __notifyUpdated(uri, state)) break outer;
+          }
         }
+      } catch {
+        // Generator error or disconnection
       }
       __subscriptions.delete(uri);
     })();
@@ -444,9 +455,13 @@ function __parseListItem(item: string | { uri: string; name?: string; mimeType?:
     const state = { stop: false };
     __subscriptions.set(uri, state);
     (async () => {
-      while (!state.stop) {
-        await poll();
-        if (!state.stop) await __notifyUpdated(uri);
+      try {
+        while (!state.stop) {
+          await poll();
+          if (!state.stop && !await __notifyUpdated(uri, state)) break;
+        }
+      } catch {
+        // Poll error or disconnection
       }
       __subscriptions.delete(uri);
     })();
@@ -469,6 +484,10 @@ ${subscribeMatches}
 
   return `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import { createServer, IncomingMessage, ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";${subscriptionImports}${resourceTemplateImport}${uriTemplateImport}${promptTypeImport}${resourceSchemaImport}
 ${importStatement}
 ${resourceHelpers}${listHelpers}
@@ -485,10 +504,153 @@ ${subscriptionHelpersInner}
   return server;
 }
 
+// Simple CLI argument parsing
+function parseArgs() {
+  const args = process.argv.slice(2);
+  let port: number | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--help" || args[i] === "-h") {
+      console.log(\`${serverName} MCP Server
+
+Usage: ${serverName} [options]
+
+Options:
+  --port <port>  Run HTTP server on specified port
+  --help, -h     Show this help message
+
+Environment variables:
+  MCP_PORT       Run HTTP server on specified port (same as --port)
+
+If no port is specified, runs in stdio mode for use with MCP clients.\`);
+      process.exit(0);
+    }
+    if (args[i] === "--port" && args[i + 1]) {
+      port = parseInt(args[i + 1], 10);
+      i++;
+    }
+  }
+
+  return { port: port ?? (process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : undefined) };
+}
+
+// Read request body as JSON
+async function readBody(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      try {
+        resolve(body ? JSON.parse(body) : undefined);
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+// Send JSON-RPC error response
+function sendError(res: ServerResponse, code: number, message: string, httpStatus = 400) {
+  res.writeHead(httpStatus, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ jsonrpc: "2.0", error: { code, message }, id: null }));
+}
+
 async function main() {
-  const server = getServer();
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  const { port } = parseArgs();
+
+  if (port) {
+    // HTTP mode with StreamableHTTPServerTransport
+    const transports: Record<string, StreamableHTTPServerTransport> = {};
+
+    const httpServer = createServer(async (req, res) => {
+      const url = new URL(req.url ?? "/", \`http://localhost:\${port}\`);
+
+      // Only handle /mcp endpoint
+      if (url.pathname !== "/mcp") {
+        res.writeHead(404).end("Not Found");
+        return;
+      }
+
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+      try {
+        if (req.method === "POST") {
+          const body = await readBody(req);
+          let transport: StreamableHTTPServerTransport;
+
+          if (sessionId && transports[sessionId]) {
+            // Reuse existing transport
+            transport = transports[sessionId];
+          } else if (!sessionId && isInitializeRequest(body)) {
+            // New initialization request
+            transport = new StreamableHTTPServerTransport({
+              sessionIdGenerator: () => randomUUID(),
+              onsessioninitialized: (id) => {
+                transports[id] = transport;
+              },
+            });
+
+            transport.onclose = () => {
+              const sid = transport.sessionId;
+              if (sid && transports[sid]) {
+                delete transports[sid];
+              }
+            };
+
+            // Connect server to transport before handling request
+            const server = getServer();
+            await server.connect(transport);
+          } else {
+            sendError(res, -32000, "Bad Request: No valid session ID provided");
+            return;
+          }
+
+          await transport.handleRequest(req, res, body);
+        } else if (req.method === "GET") {
+          // SSE stream for existing session
+          if (!sessionId || !transports[sessionId]) {
+            sendError(res, -32000, "Invalid or missing session ID");
+            return;
+          }
+          await transports[sessionId].handleRequest(req, res);
+        } else if (req.method === "DELETE") {
+          // Session termination
+          if (sessionId && transports[sessionId]) {
+            await transports[sessionId].handleRequest(req, res);
+          } else {
+            res.writeHead(200).end();
+          }
+        } else {
+          res.writeHead(405).end("Method Not Allowed");
+        }
+      } catch (error) {
+        console.error("Error handling MCP request:", error);
+        if (!res.headersSent) {
+          sendError(res, -32603, "Internal server error", 500);
+        }
+      }
+    });
+
+    httpServer.listen(port, () => {
+      console.error(\`${serverName} MCP server running on http://localhost:\${port}/mcp\`);
+    });
+
+    // Graceful shutdown
+    process.on("SIGINT", async () => {
+      console.error("Shutting down...");
+      for (const sessionId in transports) {
+        await transports[sessionId].close();
+      }
+      httpServer.close();
+      process.exit(0);
+    });
+  } else {
+    // Stdio mode
+    const server = getServer();
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+  }
 }
 
 main().catch(console.error);
@@ -587,7 +749,19 @@ export async function generateMcpServer(options: GeneratorOptions): Promise<void
     },
   });
 
-  const packageJson = {
+  // Read source package.json to get user dependencies
+  let userDependencies: Record<string, string> = {};
+  let userDevDependencies: Record<string, string> = {};
+  try {
+    const sourcePackageJsonPath = join(entryDir, "package.json");
+    const sourcePackageJson = JSON.parse(await readFile(sourcePackageJsonPath, "utf-8"));
+    userDependencies = sourcePackageJson.dependencies || {};
+    userDevDependencies = sourcePackageJson.devDependencies || {};
+  } catch {
+    // No package.json or couldn't read it - that's fine
+  }
+
+  const packageJson: Record<string, unknown> = {
     name: `${name}-mcp-server`,
     version: "1.0.0",
     type: "module",
@@ -596,10 +770,15 @@ export async function generateMcpServer(options: GeneratorOptions): Promise<void
       [name]: "./server.mjs",
     },
     dependencies: {
+      ...userDependencies,
       "@modelcontextprotocol/sdk": "^1.25.2",
       "zod": "^4.3.5",
     },
   };
+
+  if (Object.keys(userDevDependencies).length > 0) {
+    packageJson.devDependencies = userDevDependencies;
+  }
 
   await writeFile(
     join(outputDir, "package.json"),

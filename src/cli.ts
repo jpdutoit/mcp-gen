@@ -20,7 +20,8 @@ program
   .option("-o, --output <dir>", "Output directory", "./mcp-server")
   .option("-n, --name <name>", "Server name (defaults to filename)")
   .option("-r, --run", "Compile to temp folder and run immediately")
-  .action(async (entry: string, options: { output: string; name?: string; run?: boolean }) => {
+  .option("-p, --port <port>", "Port for HTTP server (only with --run)")
+  .action(async (entry: string, options: { output: string; name?: string; run?: boolean; port?: string }) => {
     const entryPath = resolve(process.cwd(), entry);
 
     if (options.run) {
@@ -37,9 +38,16 @@ program
 
         const serverPath = join(tempDir, "server.mjs");
 
-        // Spawn the server process, inheriting stdio for interactive use
-        const child = spawn("node", [serverPath], {
+        // Build args for spawned server
+        const serverArgs = [serverPath];
+        if (options.port) {
+          serverArgs.push("--port", options.port);
+        }
+
+        // Spawn the server process, inheriting stdio and env (including MCP_PORT)
+        const child = spawn("node", serverArgs, {
           stdio: "inherit",
+          env: process.env,
         });
 
         // Handle cleanup on exit
