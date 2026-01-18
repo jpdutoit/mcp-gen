@@ -9,6 +9,7 @@ const examples = [
   { entry: "file-ops/index.ts", output: "file-ops/output", name: "file-ops" },
   { entry: "data-processor/index.ts", output: "data-processor/output", name: "data-processor" },
   { entry: "data-processor/validators.ts", output: "data-processor/validators-output", name: "validators" },
+  { entry: "chrome-devtools/index.ts", output: "chrome-devtools/output", name: "chrome-devtools" },
 ];
 
 const cwd = process.cwd();
